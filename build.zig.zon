@@ -1,5 +1,5 @@
 .{
-    .name = .@"zig-lz4",
+    .name = .ziglz4,
     .version = "0.1.1",
     .dependencies = .{
         .lz4 = .{
