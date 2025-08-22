@@ -24,11 +24,11 @@ pub fn getVersionNumber() i32 {
 }
 
 pub const Standard = struct {
-    const CompressionError = error {
+    const CompressionError = error{
         Failed,
     };
 
-    const DecompressionError = error {
+    const DecompressionError = error{
         Failed,
     };
 
@@ -36,7 +36,7 @@ pub const Standard = struct {
         return @intCast(c.LZ4_compressBound(@intCast(size)));
     }
 
-    pub fn compressDefault(src: [*]const u8, srcLen : usize, dest: [*]u8, destLen : usize) !usize {
+    pub fn compressDefault(src: [*]const u8, srcLen: usize, dest: [*]u8, destLen: usize) !usize {
         const compressedSize = c.LZ4_compress_default(src, dest, @intCast(srcLen), @intCast(destLen));
         if (compressedSize == 0) {
             return CompressionError.Failed;
@@ -44,7 +44,7 @@ pub const Standard = struct {
         return @intCast(compressedSize);
     }
 
-    pub fn decompressSafe(src: [*]const u8, srcLen : usize, dest: [*]u8, destLen : usize) !usize {
+    pub fn decompressSafe(src: [*]const u8, srcLen: usize, dest: [*]u8, destLen: usize) !usize {
         const decompressedSize = c.LZ4_decompress_safe(src, dest, @intCast(srcLen), @intCast(destLen));
         if (decompressedSize < 0) {
             return DecompressionError.Failed;
@@ -60,7 +60,7 @@ pub const Standard = struct {
         return try allocator.realloc(dest, compressedSize);
     }
 
-    pub fn decompress(allocator: Allocator, src: []const u8, szHint : usize) ![]const u8 {
+    pub fn decompress(allocator: Allocator, src: []const u8, szHint: usize) ![]const u8 {
         const dest = try allocator.alloc(u8, szHint);
         errdefer allocator.free(dest);
         const decompressedSize = try decompressSafe(src.ptr, src.len, dest.ptr, szHint);
@@ -75,7 +75,7 @@ pub const Frame = struct {
     pub const CompressOptions = c.LZ4F_compressOptions_t;
     pub const DecompressOptions = c.LZ4F_decompressOptions_t;
 
-    pub const Error = error {
+    pub const Error = error{
         Generic,
         MaxBlockSizeInvalid,
         BlockModeInvalid,
@@ -130,8 +130,8 @@ pub const Frame = struct {
         SkippableFrame = c.LZ4F_skippableFrame,
     };
 
-    fn doError(result : usize) !void {
-        const code : usize = @intCast(-@as(isize, @bitCast(result)) - 1);
+    fn doError(result: usize) !void {
+        const code: usize = @intCast(-@as(isize, @bitCast(result)) - 1);
         switch (code) {
             0 => return Error.Generic,
             1 => return Error.MaxBlockSizeInvalid,
@@ -161,19 +161,19 @@ pub const Frame = struct {
         }
     }
 
-    pub fn compressBound(size: usize, pref : *const Preferences) usize {
+    pub fn compressBound(size: usize, pref: *const Preferences) usize {
         return c.LZ4F_compressBound(@intCast(size), pref);
     }
 
-    pub fn compressBegin(ctx: *CompressionContext, dstBuffer : [*]u8, dstCapacity: usize, prefsPtr : ?*const Preferences) !usize {
+    pub fn compressBegin(ctx: *CompressionContext, dstBuffer: [*]u8, dstCapacity: usize, prefsPtr: ?*const Preferences) !usize {
         const res = c.LZ4F_compressBegin(ctx, @ptrCast(dstBuffer), dstCapacity, prefsPtr);
         if (c.LZ4F_isError(res) != 0) {
             try doError(res);
         }
         return res;
     }
-    
-    pub fn compressUpdate(ctx: *CompressionContext, dstBuffer : [*]u8, dstCapacity: usize, srcBuffer : [*]const u8, srcSize: usize, cOptionsPtr : ?*const CompressOptions) !usize {
+
+    pub fn compressUpdate(ctx: *CompressionContext, dstBuffer: [*]u8, dstCapacity: usize, srcBuffer: [*]const u8, srcSize: usize, cOptionsPtr: ?*const CompressOptions) !usize {
         const res = c.LZ4F_compressUpdate(ctx, @ptrCast(dstBuffer), dstCapacity, @ptrCast(srcBuffer), srcSize, cOptionsPtr);
         if (c.LZ4F_isError(res) != 0) {
             try doError(res);
@@ -181,7 +181,7 @@ pub const Frame = struct {
         return res;
     }
 
-    pub fn compressEnd(ctx: *CompressionContext, dstBuffer : [*]u8, dstCapacity: usize, cOptionsPtr : ?*const CompressOptions) !usize {
+    pub fn compressEnd(ctx: *CompressionContext, dstBuffer: [*]u8, dstCapacity: usize, cOptionsPtr: ?*const CompressOptions) !usize {
         const res = c.LZ4F_compressEnd(ctx, @ptrCast(dstBuffer), dstCapacity, cOptionsPtr);
         if (c.LZ4F_isError(res) != 0) {
             try doError(res);
@@ -189,7 +189,7 @@ pub const Frame = struct {
         return res;
     }
 
-    pub fn createCompressionContext(allocator: Allocator, versionNumber : ?i32) !**CompressionContext {
+    pub fn createCompressionContext(allocator: Allocator, versionNumber: ?i32) !**CompressionContext {
         const ctxPtr = try allocator.create(*CompressionContext);
         errdefer allocator.destroy(ctxPtr);
         const res = c.LZ4F_createCompressionContext(@ptrCast(ctxPtr), @intCast(versionNumber orelse getVersionNumber()));
@@ -199,7 +199,7 @@ pub const Frame = struct {
         return ctxPtr;
     }
 
-    pub fn decompress(ctx: *DecompressionContext, dstBuffer : [*]u8, dstCapacity: usize, srcBuffer : [*]const u8, srcSize: usize, dOptionsPtr : ?*const DecompressOptions) !usize {
+    pub fn decompress(ctx: *DecompressionContext, dstBuffer: [*]u8, dstCapacity: usize, srcBuffer: [*]const u8, srcSize: usize, dOptionsPtr: ?*const DecompressOptions) !usize {
         var srcSizeMutable = srcSize;
         var dstCapacityMutable = dstCapacity;
         const res = c.LZ4F_decompress(ctx, @ptrCast(dstBuffer), @ptrCast(&dstCapacityMutable), @ptrCast(srcBuffer), @ptrCast(&srcSizeMutable), dOptionsPtr);
@@ -209,7 +209,7 @@ pub const Frame = struct {
         return res;
     }
 
-    pub fn createDecompressionContext(allocator: Allocator, versionNumber : ?i32) !**DecompressionContext {
+    pub fn createDecompressionContext(allocator: Allocator, versionNumber: ?i32) !**DecompressionContext {
         const ctxPtr = try allocator.create(*DecompressionContext);
         errdefer allocator.destroy(ctxPtr);
         const res = c.LZ4F_createDecompressionContext(@ptrCast(ctxPtr), @intCast(versionNumber orelse getVersionNumber()));
@@ -234,15 +234,15 @@ const INPUT_CHUNK_SIZE = 64 * 1024;
 
 const ResizableWriteError = error{NoSpaceLeft};
 const ResizableBufferStream = struct {
-    allocator : Allocator = undefined,
+    allocator: Allocator = undefined,
     buffer: []u8,
     pos: usize,
 
     const Self = @This();
 
-    pub const Writer = std.io.Writer(*Self, ResizableWriteError, write);
+    pub const Writer = std.io.GenericWriter(*Self, ResizableWriteError, write);
 
-    pub fn init(allocator : Allocator) !ResizableBufferStream {
+    pub fn init(allocator: Allocator) !ResizableBufferStream {
         const buffer = try allocator.alloc(u8, 0);
         return .{
             .allocator = allocator,
@@ -260,10 +260,10 @@ const ResizableBufferStream = struct {
     }
 
     pub fn writer(self: *Self) Writer {
-        return .{ .context = self};
+        return .{ .context = self };
     }
 
-    pub fn write(self: *Self, bytes : []const u8) !usize {
+    pub fn write(self: *Self, bytes: []const u8) !usize {
         const pos = self.pos;
         if (bytes.len == 0) return 0;
 
@@ -280,20 +280,20 @@ const ResizableBufferStream = struct {
 };
 
 pub const Encoder = struct {
-    allocator : Allocator = undefined,
-    ctx : **Frame.CompressionContext = undefined,
-    writer : []u8 = undefined,
+    allocator: Allocator = undefined,
+    ctx: **Frame.CompressionContext = undefined,
+    writer: []u8 = undefined,
 
-    level : u32 = 0,
-    blockSize : Frame.BlockSize = Frame.BlockSize.Default,
-    blockMode : Frame.BlockMode = Frame.BlockMode.Linked,
-    contentChecksum : Frame.ContentChecksum = Frame.ContentChecksum.Enabled,
-    blockChecksum : Frame.BlockChecksum = Frame.BlockChecksum.Disabled,
-    frameType : Frame.FrameType = Frame.FrameType.Frame,
-    favorDecSpeed : bool = false,
-    autoFlush : bool = false,
+    level: u32 = 0,
+    blockSize: Frame.BlockSize = Frame.BlockSize.Default,
+    blockMode: Frame.BlockMode = Frame.BlockMode.Linked,
+    contentChecksum: Frame.ContentChecksum = Frame.ContentChecksum.Enabled,
+    blockChecksum: Frame.BlockChecksum = Frame.BlockChecksum.Disabled,
+    frameType: Frame.FrameType = Frame.FrameType.Frame,
+    favorDecSpeed: bool = false,
+    autoFlush: bool = false,
 
-    pub fn init(alloc : Allocator) !Encoder {
+    pub fn init(alloc: Allocator) !Encoder {
         const ctxPtr = try Frame.createCompressionContext(alloc, null);
         return .{
             .allocator = alloc,
@@ -301,51 +301,51 @@ pub const Encoder = struct {
         };
     }
 
-    pub fn deinit(encoder : *Encoder) void {
+    pub fn deinit(encoder: *Encoder) void {
         Frame.freeCompressionContext(encoder.allocator, encoder.ctx);
     }
 
-    pub fn setLevel(encoder : *Encoder, level : u32) *Encoder {
+    pub fn setLevel(encoder: *Encoder, level: u32) *Encoder {
         encoder.level = level;
         return encoder;
     }
 
-    pub fn setBlockSize(encoder : *Encoder, blockSize : Frame.BlockSize) *Encoder {
+    pub fn setBlockSize(encoder: *Encoder, blockSize: Frame.BlockSize) *Encoder {
         encoder.blockSize = blockSize;
         return encoder;
     }
 
-    pub fn setBlockMode(encoder : *Encoder, blockMode : Frame.BlockMode) *Encoder {
+    pub fn setBlockMode(encoder: *Encoder, blockMode: Frame.BlockMode) *Encoder {
         encoder.blockMode = blockMode;
         return encoder;
     }
 
-    pub fn setContentChecksum(encoder : *Encoder, contentChecksum : Frame.ContentChecksum) *Encoder {
+    pub fn setContentChecksum(encoder: *Encoder, contentChecksum: Frame.ContentChecksum) *Encoder {
         encoder.contentChecksum = contentChecksum;
         return encoder;
     }
 
-    pub fn setBlockChecksum(encoder : *Encoder, blockChecksum : Frame.BlockChecksum) *Encoder {
+    pub fn setBlockChecksum(encoder: *Encoder, blockChecksum: Frame.BlockChecksum) *Encoder {
         encoder.blockChecksum = blockChecksum;
         return encoder;
     }
 
-    pub fn setFrameType(encoder : *Encoder, frameType : Frame.FrameType) *Encoder {
+    pub fn setFrameType(encoder: *Encoder, frameType: Frame.FrameType) *Encoder {
         encoder.frameType = frameType;
         return encoder;
     }
 
-    pub fn setAutoFlush(encoder : *Encoder, autoFlush : bool) *Encoder {
+    pub fn setAutoFlush(encoder: *Encoder, autoFlush: bool) *Encoder {
         encoder.autoFlush = if (autoFlush) 1 else 0;
         return encoder;
     }
 
-    pub fn setFavorDecSpeed(encoder : *Encoder, favorDecSpeed : bool) *Encoder {
+    pub fn setFavorDecSpeed(encoder: *Encoder, favorDecSpeed: bool) *Encoder {
         encoder.favorDecSpeed = if (favorDecSpeed) 1 else 0;
         return encoder;
     }
 
-    pub fn compressStream(encoder : *Encoder, streamWriter : std.io.AnyWriter, src : []const u8) !void {
+    pub fn compressStream(encoder: *Encoder, streamWriter: std.io.AnyWriter, src: []const u8) !void {
         const pref = Frame.Preferences{
             .compressionLevel = @intCast(encoder.level),
             .frameInfo = .{
@@ -356,7 +356,7 @@ pub const Encoder = struct {
                 .frameType = @intFromEnum(encoder.frameType),
                 .dictID = 0,
             },
-            .reserved = [3]c_uint{0,0,0},
+            .reserved = [3]c_uint{ 0, 0, 0 },
             .autoFlush = if (encoder.autoFlush) 1 else 0,
             .favorDecSpeed = if (encoder.favorDecSpeed) 1 else 0,
         };
@@ -369,7 +369,7 @@ pub const Encoder = struct {
         const startRes = try Frame.compressBegin(ctx, writer.ptr, bound, &pref);
         try streamWriter.writeAll(writer[0..startRes]);
 
-        var offset : usize = 0;
+        var offset: usize = 0;
         while (offset < src.len) {
             const readSize = @min(src.len - offset, INPUT_CHUNK_SIZE);
             const updateLen = try Frame.compressUpdate(ctx, writer.ptr, bound, src[offset..].ptr, readSize, null);
@@ -382,9 +382,9 @@ pub const Encoder = struct {
         try streamWriter.writeAll(writer[0..endRes]);
     }
 
-    pub fn compress(encoder : *Encoder, src : []const u8) ![]const u8 {
+    pub fn compress(encoder: *Encoder, src: []const u8) ![]const u8 {
         const allocator = encoder.allocator;
-      
+
         var buffStream = try ResizableBufferStream.init(allocator);
         errdefer buffStream.deinit();
         const buffWriter = buffStream.writer().any();
@@ -396,9 +396,9 @@ pub const Encoder = struct {
 };
 
 pub const Decoder = struct {
-    allocator : Allocator = undefined,
-    ctx : **Frame.DecompressionContext = undefined,
-    pub fn init(alloc : Allocator) !Decoder {
+    allocator: Allocator = undefined,
+    ctx: **Frame.DecompressionContext = undefined,
+    pub fn init(alloc: Allocator) !Decoder {
         const ctxPtr = try Frame.createDecompressionContext(alloc, null);
         return .{
             .allocator = alloc,
@@ -406,18 +406,18 @@ pub const Decoder = struct {
         };
     }
 
-    pub fn deinit(decoder : *Decoder) void {
+    pub fn deinit(decoder: *Decoder) void {
         Frame.freeDecompressionContext(decoder.allocator, decoder.ctx);
     }
 
-    pub fn decompress(decoder : *Decoder, src : []const u8, dstSize : usize) ![]const u8 {
+    pub fn decompress(decoder: *Decoder, src: []const u8, dstSize: usize) ![]const u8 {
         const ctx = decoder.ctx.*;
         const dest = try decoder.allocator.alloc(u8, dstSize);
         errdefer decoder.allocator.free(dest);
         const srcLen = src.len;
 
-        var dstOffset : usize = 0;
-        var srcOffset : usize = 0;
+        var dstOffset: usize = 0;
+        var srcOffset: usize = 0;
         while (dstOffset < dstSize and srcOffset < srcLen) {
             const readSrcSize = srcLen - srcOffset;
             const incrDstSize = dstSize - dstOffset;
@@ -464,7 +464,7 @@ test "frame compression & decompression 112k sample" {
 
     // Compression
     var encoder = try Encoder.init(allocator);
-        _ = encoder.setLevel(0)
+    _ = encoder.setLevel(0)
         .setContentChecksum(Frame.ContentChecksum.Enabled)
         .setBlockMode(Frame.BlockMode.Independent);
     defer encoder.deinit();
@@ -492,7 +492,7 @@ test "frame compression & decompression 1k sample" {
 
     // Compression
     var encoder = try Encoder.init(allocator);
-        _ = encoder.setLevel(0)
+    _ = encoder.setLevel(0)
         .setContentChecksum(Frame.ContentChecksum.Enabled)
         .setBlockMode(Frame.BlockMode.Independent);
     defer encoder.deinit();
