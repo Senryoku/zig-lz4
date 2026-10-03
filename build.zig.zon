@@ -2,10 +2,17 @@
     .name = .ziglz4,
     .fingerprint = 0x9c01020fe33a841c,
     .version = "0.1.1",
-    .dependencies = .{ .lz4 = .{
-        .url = "https://github.com/lz4/lz4/archive/refs/tags/v1.9.4.tar.gz",
-        .hash = "N-V-__8AADl1GQCp5RB-yjNJ0FdNwB1sJwiEBSu685fVS4RY",
-    } },
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{
+        .lz4 = .{
+            .url = "https://github.com/lz4/lz4/archive/refs/tags/v1.9.4.tar.gz",
+            .hash = "N-V-__8AADl1GQCp5RB-yjNJ0FdNwB1sJwiEBSu685fVS4RY",
+        },
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c#875969d3493e245e01bf5d7860f792d8f3eb9ef5",
+            .hash = "translate_c-0.0.0-Q_BUWoFOBwAhz77Zd15HCVuhTKzdUKc94kezmCeJ7IC_",
+        },
+    },
     .paths = .{
         "src",
         "build.zig",

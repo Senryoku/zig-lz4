@@ -1,4 +1,5 @@
 const std = @import("std");
+const Translator = @import("translate_c").Translator;
 
 const SOURCE_FILES = [_][]const u8{
     "lib/lz4.c",
@@ -19,50 +20,54 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addLibrary(.{
-        .name = "lz4",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path(LIB_SRC),
-            .target = target,
-            .optimize = optimize,
-        }),
-        .linkage = .static,
+    const lz4_module = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
     });
-
-    const lz4_module = b.addModule("zig-lz4", .{
-        .root_source_file = b.path("src/lib.zig"),
-    });
-
-    lz4_module.linkLibrary(lib);
 
     const FLAGS = [_][]const u8{
         "-DLZ4LIB_API=extern\"C\"",
     };
-
-    for (HEADER_DIRS) |dir| {
-        lib.root_module.addIncludePath(lz4_dependency.path(dir));
-    }
-    lib.root_module.link_libcpp = true;
     for (SOURCE_FILES) |file| {
-        lib.root_module.addCSourceFile(.{ .file = lz4_dependency.path(file), .flags = &FLAGS });
+        lz4_module.addCSourceFile(.{ .file = lz4_dependency.path(file), .flags = &FLAGS });
+    }
+    for (HEADER_DIRS) |dir| {
+        lz4_module.addIncludePath(lz4_dependency.path(dir));
     }
 
-    lib.installHeader(lz4_dependency.path("lib/lz4.h"), "lz4.h");
-    lib.installHeader(lz4_dependency.path("lib/lz4frame.h"), "lz4frame.h");
+    const lz4 = b.addLibrary(.{
+        .name = "lz4",
+        .root_module = lz4_module,
+    });
+    lz4.installHeader(lz4_dependency.path("lib/lz4.h"), "lz4.h");
+    lz4.installHeader(lz4_dependency.path("lib/lz4frame.h"), "lz4frame.h");
 
-    b.installArtifact(lib);
+    const translate_c = b.dependency("translate_c", .{});
+    const translator: Translator = .init(translate_c, .{
+        .c_source_file = b.path("src/c.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    translator.linkLibrary(lz4);
+
+    const zig_lz4_module = b.addModule("zig-lz4", .{
+        .root_source_file = b.path("src/lib.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "c", .module = translator.mod }},
+    });
+    const zig_lz4 = b.addLibrary(.{
+        .name = "zig-lz4",
+        .root_module = lz4_module,
+    });
+
+    b.installArtifact(zig_lz4);
 
     // Unit tests
     const lib_unit_tests = b.addTest(.{
-        .root_module = b.createModule(.{
-            .root_source_file = b.path(LIB_SRC),
-            .target = target,
-            .optimize = optimize,
-        }),
+        .root_module = zig_lz4_module,
     });
-
-    lib_unit_tests.root_module.linkLibrary(lib);
-    lib_unit_tests.root_module.addIncludePath(lz4_dependency.path("lib"));
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
@@ -74,15 +79,8 @@ pub fn build(b: *std.Build) void {
 
     const docs_obj = b.addObject(.{
         .name = "docs",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path(LIB_SRC),
-            .target = target,
-            .optimize = optimize,
-        }),
+        .root_module = zig_lz4_module,
     });
-
-    docs_obj.root_module.linkLibrary(lib);
-    docs_obj.root_module.addIncludePath(lz4_dependency.path("lib"));
 
     const install_docs = b.addInstallDirectory(.{
         .source_dir = docs_obj.getEmittedDocs(),

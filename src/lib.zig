@@ -1,10 +1,7 @@
 const std = @import("std");
 
 /// LZ4 C API
-const c = @cImport({
-    @cInclude("lz4.h");
-    @cInclude("lz4frame.h");
-});
+const c = @import("c");
 
 const Allocator = std.mem.Allocator;
 
@@ -349,11 +346,11 @@ pub const Encoder = struct {
         const pref = Frame.Preferences{
             .compressionLevel = @intCast(encoder.level),
             .frameInfo = .{
-                .blockSizeID = @intFromEnum(encoder.blockSize),
-                .blockMode = @intFromEnum(encoder.blockMode),
-                .contentChecksumFlag = @intFromEnum(encoder.contentChecksum),
-                .blockChecksumFlag = @intFromEnum(encoder.blockChecksum),
-                .frameType = @intFromEnum(encoder.frameType),
+                .blockSizeID = @backingInt(encoder.blockSize),
+                .blockMode = @backingInt(encoder.blockMode),
+                .contentChecksumFlag = @backingInt(encoder.contentChecksum),
+                .blockChecksumFlag = @backingInt(encoder.blockChecksum),
+                .frameType = @backingInt(encoder.frameType),
                 .dictID = 0,
             },
             .reserved = [3]c_uint{ 0, 0, 0 },
