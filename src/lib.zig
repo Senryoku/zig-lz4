@@ -229,53 +229,6 @@ pub const Frame = struct {
 
 const INPUT_CHUNK_SIZE = 64 * 1024;
 
-const ResizableWriteError = error{NoSpaceLeft};
-const ResizableBufferStream = struct {
-    allocator: Allocator = undefined,
-    buffer: []u8,
-    pos: usize,
-
-    const Self = @This();
-
-    pub const Writer = std.io.GenericWriter(*Self, ResizableWriteError, write);
-
-    pub fn init(allocator: Allocator) !ResizableBufferStream {
-        const buffer = try allocator.alloc(u8, 0);
-        return .{
-            .allocator = allocator,
-            .buffer = buffer,
-            .pos = 0,
-        };
-    }
-
-    pub fn deinit(self: *Self) void {
-        self.allocator.free(self.buffer);
-    }
-
-    pub fn getPos(self: *Self) usize {
-        return self.pos;
-    }
-
-    pub fn writer(self: *Self) Writer {
-        return .{ .context = self };
-    }
-
-    pub fn write(self: *Self, bytes: []const u8) !usize {
-        const pos = self.pos;
-        if (bytes.len == 0) return 0;
-
-        const n = bytes.len;
-        if (pos + n > self.buffer.len) self.buffer = self.allocator.realloc(self.buffer, pos + n) catch {
-            return error.NoSpaceLeft;
-        };
-
-        @memcpy(self.buffer[pos..][0..n], bytes[0..n]);
-        self.pos += n;
-
-        return n;
-    }
-};
-
 pub const Encoder = struct {
     allocator: Allocator = undefined,
     ctx: **Frame.CompressionContext = undefined,
@@ -342,7 +295,7 @@ pub const Encoder = struct {
         return encoder;
     }
 
-    pub fn compressStream(encoder: *Encoder, streamWriter: std.io.AnyWriter, src: []const u8) !void {
+    pub fn compressStream(encoder: *Encoder, streamWriter: *std.Io.Writer, src: []const u8) !void {
         const pref = Frame.Preferences{
             .compressionLevel = @intCast(encoder.level),
             .frameInfo = .{
@@ -351,6 +304,7 @@ pub const Encoder = struct {
                 .contentChecksumFlag = @backingInt(encoder.contentChecksum),
                 .blockChecksumFlag = @backingInt(encoder.blockChecksum),
                 .frameType = @backingInt(encoder.frameType),
+                .contentSize = 0,
                 .dictID = 0,
             },
             .reserved = [3]c_uint{ 0, 0, 0 },
@@ -382,13 +336,12 @@ pub const Encoder = struct {
     pub fn compress(encoder: *Encoder, src: []const u8) ![]const u8 {
         const allocator = encoder.allocator;
 
-        var buffStream = try ResizableBufferStream.init(allocator);
-        errdefer buffStream.deinit();
-        const buffWriter = buffStream.writer().any();
+        var buffStream = std.Io.Writer.Allocating.init(allocator);
+        defer buffStream.deinit();
 
-        try encoder.compressStream(buffWriter, src);
+        try encoder.compressStream(&buffStream.writer, src);
 
-        return buffStream.buffer;
+        return buffStream.toOwnedSlice();
     }
 };
 
@@ -455,8 +408,9 @@ test "create decompression context error OutOfMemory" {
 }
 
 test "frame compression & decompression 112k sample" {
+    const io = testing.io;
     const allocator = testing.allocator;
-    const sampleText = try std.fs.cwd().readFileAlloc(allocator, "./files/112k-sample.txt", std.math.maxInt(usize));
+    const sampleText = try std.Io.Dir.cwd().readFileAlloc(io, "./files/112k-sample.txt", allocator, .unlimited);
     defer allocator.free(sampleText);
 
     // Compression
@@ -469,7 +423,7 @@ test "frame compression & decompression 112k sample" {
     const compressed = try encoder.compress(sampleText);
     defer allocator.free(compressed);
 
-    const expectedCompressed = try std.fs.cwd().readFileAlloc(allocator, "./files/112k-compressed-expected.txt", std.math.maxInt(usize));
+    const expectedCompressed = try std.Io.Dir.cwd().readFileAlloc(io, "./files/112k-compressed-expected.txt", allocator, .unlimited);
     defer allocator.free(expectedCompressed);
     try testing.expectEqualStrings(expectedCompressed, compressed);
 
@@ -483,8 +437,9 @@ test "frame compression & decompression 112k sample" {
 }
 
 test "frame compression & decompression 1k sample" {
+    const io = testing.io;
     const allocator = testing.allocator;
-    const sampleText = try std.fs.cwd().readFileAlloc(allocator, "./files/1k-sample.txt", std.math.maxInt(usize));
+    const sampleText = try std.Io.Dir.cwd().readFileAlloc(io, "./files/1k-sample.txt", allocator, .unlimited);
     defer allocator.free(sampleText);
 
     // Compression
@@ -497,7 +452,7 @@ test "frame compression & decompression 1k sample" {
     const compressed = try encoder.compress(sampleText);
     defer allocator.free(compressed);
 
-    const expectedCompressed = try std.fs.cwd().readFileAlloc(allocator, "./files/1k-compressed-expected.txt", std.math.maxInt(usize));
+    const expectedCompressed = try std.Io.Dir.cwd().readFileAlloc(io, "./files/1k-compressed-expected.txt", allocator, .unlimited);
     defer allocator.free(expectedCompressed);
     try testing.expectEqualStrings(expectedCompressed, compressed);
 
@@ -511,6 +466,7 @@ test "frame compression & decompression 1k sample" {
 }
 
 test "standard compression & decompression" {
+    const io = testing.io;
     const allocator = testing.allocator;
     const sample = "\nLorem ipsum dolor sit amet, consectetur adipiscing elit";
 
@@ -518,7 +474,7 @@ test "standard compression & decompression" {
     const compressed = try Standard.compress(allocator, sample);
     defer allocator.free(compressed);
 
-    const expectedCompressed = try std.fs.cwd().readFileAlloc(allocator, "./files/basic-compressed-expected.txt", std.math.maxInt(usize));
+    const expectedCompressed = try std.Io.Dir.cwd().readFileAlloc(io, "./files/basic-compressed-expected.txt", allocator, .unlimited);
     defer allocator.free(expectedCompressed);
 
     try testing.expectEqualStrings(expectedCompressed, compressed);
